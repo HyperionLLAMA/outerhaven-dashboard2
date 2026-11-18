@@ -6,6 +6,7 @@ import { sb, state, esc, $, $$, toast, fail, modal, opts, firstName } from './co
 import { messageFor } from './outreach.js';
 import { whyBlock } from './kinds.js';
 import { loadContacts, contactHtml, bindContacts, bestPerson, contactsSetup } from './contacts.js';
+import { linkedHelperModal } from './linkedhelper.js';
 import { markBtns, markLine, bindMarks, MARK_VIEWS, inMarkView } from './marks.js';
 
 let el = null, rows = [], runs = [], view = 'target', onCount = () => {};
@@ -86,7 +87,7 @@ function draw() {
   const last = runs[0], st = last?.stats || {};
   el.innerHTML = `<div class="fs">
     <div class="fsTop"><p class="pHint" style="padding:0;margin:0;max-width:700px">Private companies with <b>$10–150M of debt</b> from public lending funds (BDCs), where the loan matures within 18 months or the lender has marked it down. Size, maturity and the lender's own valuation come straight from the lenders' SEC filings, not estimates.</p>
-      <div class="row fsBtns"><a class="btn sm ghost" href="${GH_RUN}" target="_blank" rel="noopener">Run a scan on GitHub ↗</a><button class="btn sm ghost" id="bdHow">How it works</button><a class="btn sm ghost" href="#/rules">How we qualify</a><button class="btn sm ghost" id="ctSetup">Contacts setup</button></div></div>
+      <div class="row fsBtns"><button class="btn sm primary" id="lhExport">Export LinkedIn list</button><a class="btn sm ghost" href="${GH_RUN}" target="_blank" rel="noopener">Run a scan on GitHub ↗</a><button class="btn sm ghost" id="bdHow">How it works</button><a class="btn sm ghost" href="#/rules">How we qualify</a><button class="btn sm ghost" id="ctSetup">Contacts setup</button></div></div>
     <p class="pHint">Source: the SEC's BDC data sets (every BDC's loan list, monthly). Free.${last ? ` Last run <b>${new Date(last.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b>${st.bdcs ? ` · ${st.bdcs} BDCs, ${Number(st.borrowers || 0).toLocaleString()} borrowers read` : ''}.` : ' Not run yet: on GitHub choose Run workflow, mode <b>bdc</b>.'}</p>
     <div class="ucFilters">
       <label class="ucF ucQ"><span>Search</span><input class="input" data-f="q" type="search" placeholder="Company, industry or lender" value="${esc(F.q)}"></label>
@@ -162,6 +163,7 @@ function bind(shown) {
   bindMarks(el, { table: 'bdc_signals', find, redraw: drawList });
   bindContacts(el, 'bdc', drawList);
   $('#ctSetup', el)?.addEventListener('click', contactsSetup);
+  $('#lhExport', el)?.addEventListener('click', () => linkedHelperModal(null, 'credit'));
   $$('[data-view]', el).forEach(b => b.onclick = () => { view = b.dataset.view; drawList(); });
   $$('[data-copy]', el).forEach(b => b.onclick = async () => {
     const t = opener(find(b.dataset.copy));

@@ -587,6 +587,12 @@ Today, Schedule, Resources (no one holds it right now, the role still exists). R
   62 of 323 targets that day). Send today's batch puts them first among credit picks.
 - Keys pasted by an admin in any signal tab → "Contacts setup" (RPC `set_contact_key`, write-only; never enter them for the user).
 - "Add to pipeline" pre-fills name, title and LinkedIn from the best person.
+- **Export LinkedIn list** (19 Nov 2026, Tengku: "why is it so hard to find"): primary button first in the Fund / Credit / BDC tab toolbars,
+  opens `linkedHelperModal(null, lane)` (`hq/linkedhelper.js`; also on Today → Daily 3). Plain `profile_url` CSV for Linked Helper or Prosp.
+- **Fund GP LinkedIn v2** (19 Nov 2026: 127 of 271 fund targets had none): `personProfile(results, name, firm, location)` takes a profile on
+  firm named, Form D city named (people move firms: Colker AI2 → AI House), or nicknames (Abraham = Abe); a lone exact-name profile with a
+  location-only headline = `status: 'unconfirmed'` (export shows "? check profile", unticked). A miss also searches last name + firm brand.
+  v1 misses (old lookup_note) are re-queued once; ingest kind `funds` {n ≤ 20} runs a catch-up batch.
 
 ## Scoreboard + sidebar groups (10 Oct 2026; `hq/scoreboard.js`, `supabase/2026-10-10-team-names.sql`)
 - `#/score` (admin): Daily 3 outcomes only. Weekdays hit, 7-day team grid vs `DAILY3` targets (✓ / ✕ symbols, not colour alone),

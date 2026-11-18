@@ -202,6 +202,7 @@ async function email(kind: string, key: string, name: string, role = "", typed =
 // (Serper; Brave if no Serper key). Stored as signal_contacts kind 'fund', key = fund_key (one row per fund, not per vehicle).
 const firmOf = (n: string) => String(n || "").replace(/\([^)]*\)/g, " ").replace(/,?\s*\b(l\.?\s?p\.?|llc|l\.?l\.?c\.?|ltd|inc|scsp)\b\.?/gi, " ")
   .replace(/\s+(?:fund\s+)?(?:[IVX]{1,4}|\d{1,2})(?:-[A-Z0-9]+)?\b.*$/i, "").replace(/\s+fund\b.*$/i, "").replace(/[,\s]+$/, "").replace(/\s+/g, " ").trim();
+const FUND_MISS = "No LinkedIn match for the Form D names (v2: nicknames, city, last name + firm).";
 async function lookupFund(fundKey: string) {
   const s = (await sb.from("fund_signals").select("company_name,executives,check_keyword").eq("fund_key", fundKey).order("score", { ascending: false }).limit(1).maybeSingle()).data;
   if (!s) throw new Error("Fund not found");
@@ -212,17 +213,21 @@ async function lookupFund(fundKey: string) {
   const people = await Promise.all(((s.executives || []) as any[]).filter(p => p?.name).slice(0, 3).map(async (p: any) => {
     const old = (row?.people || []).find((o: any) => o.name === p.name);
     if (old?.linkedin || old?.status) return old;
-    const q = `"${p.name}" ${firm} site:linkedin.com/in`;
-    const res = sk ? await serper(q, sk) : await brave(q, bk);
-    const hit = personProfile(res, p.name, firm);
-    return { name: p.name, role: "gp", title: hit?.title || p.title || null, linkedin: hit?.linkedin || null, source: "formd", li_checked: now };
+    const search = (q: string) => sk ? serper(q, sk) : brave(q, bk);
+    let hit = personProfile(await search(`"${p.name}" ${firm} site:linkedin.com/in`), p.name, firm, p.location);
+    // Miss: last name + firm brand (finds "Abe Othman" for Abraham Othman, and profiles whose headline drops the legal name).
+    if (!hit) hit = personProfile(await search(`${String(p.name).trim().split(/\s+/).pop()} ${searchName(firm) || firm} site:linkedin.com/in`), p.name, firm, p.location);
+    return { name: p.name, role: "gp", title: hit?.title || p.title || null, linkedin: hit?.linkedin || null, match: hit?.match || null,
+      ...(hit?.match === "name" ? { status: "unconfirmed" } : {}), source: "formd", li_checked: now };
   }));
-  await save("fund", fundKey, { company_name: s.company_name, people, looked_up_at: now, lookup_note: people.some(p => p.linkedin) ? null : "No LinkedIn match for the Form D names." });
+  await save("fund", fundKey, { company_name: s.company_name, people, looked_up_at: now, lookup_note: people.some(p => p.linkedin) ? null : FUND_MISS });
   return { ok: true, found: people.filter(p => p.linkedin).length };
 }
 // Up to n fund targets a run (best score first, each fund once).
 async function funds(n = 8) {
-  const done = new Set(((await sb.from("signal_contacts").select("key").eq("kind", "fund").not("looked_up_at", "is", null)).data || []).map((r: any) => r.key));
+  // Misses from the v1 search (19 Nov 2026: 127 of 271 targets) count as not done, so they get the v2 search once.
+  const done = new Set(((await sb.from("signal_contacts").select("key,lookup_note").eq("kind", "fund").not("looked_up_at", "is", null)).data || [])
+    .filter((r: any) => r.lookup_note !== "No LinkedIn match for the Form D names.").map((r: any) => r.key));
   const rows = (await sb.from("fund_signals").select("fund_key,score").eq("verdict", "target").in("status", ["new", "added"]).not("fund_key", "is", null).order("score", { ascending: false }).limit(2000)).data || [];
   const todo = [...new Set((rows as any[]).map(r => r.fund_key))].filter(k => !done.has(k)).slice(0, n);
   // The table only takes kind 'fund' after supabase/2026-11-13-fund-contacts.sql; until then, spend nothing on searches.
@@ -307,6 +312,8 @@ async function ingest(body: any) {
     await save(t, k, { company_name: row?.company_name || body.company_name || null, people: mergePeople(row?.people || [], [body.person]) });
     return { stored: 1 };
   }
+  // Catch-up fund LinkedIn lookups outside the 30-min cron (after a matcher change).
+  if (body.kind === "funds") return await funds(Math.min(Number(body.n) || 8, 20));
   // Same email check as the card's "Find email", for Claude's pre-send checks from SQL (7 Nov 2026; no admin login there).
   if (body.kind === "email") {
     const t = String(body.type || "credit"), k = String(body.key || ""), d = String(body.domain || "").trim().toLowerCase();

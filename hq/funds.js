@@ -6,6 +6,7 @@ import { whyBlock } from './kinds.js';
 import { me } from './tasks.js';
 import { markBtns, markLine, bindMarks, MARK_VIEWS, inMarkView } from './marks.js';
 import { loadContacts, contactOf } from './contacts.js';
+import { linkedHelperModal } from './linkedhelper.js';
 
 let el = null, rows = [], runs = [], cfg = null, list = 'live', view = 'target', timer = null, onCount = () => {};
 let stageF = '', stratF = ''; // filters: '' = all
@@ -120,7 +121,7 @@ function draw() {
   el.innerHTML = `<div class="fs">
     <div class="fsTop">
       <div class="pSeg" role="group">${[['live', 'Raising now'], ['fund1', 'Due for next fund']].map(([k, l]) => `<button type="button" data-list="${k}" class="${list === k ? 'on' : ''}">${l}<em>${grouped(k).filter(s => bucket(s) === 'target').length}</em></button>`).join('')}</div>
-      <div class="row fsBtns"><a class="btn sm ghost" href="${GH_RUN}" target="_blank" rel="noopener">Run a scan on GitHub ↗</a>
+      <div class="row fsBtns"><button class="btn sm primary" id="lhExport">Export LinkedIn list</button><a class="btn sm ghost" href="${GH_RUN}" target="_blank" rel="noopener">Run a scan on GitHub ↗</a>
         <button class="btn sm" id="fsCollect">${running.length ? `Collect results (${running.length} running)` : 'Refresh'}</button>
         <button class="btn sm ghost" id="fsHow">How it works</button><a class="btn sm ghost" href="#/rules">How we qualify</a><button class="btn sm ghost" id="fsSet">Setup</button></div>
     </div>
@@ -249,6 +250,7 @@ function bind(shown) {
   $('#fsHow', el).onclick = howModal;
   $('#fsSet', el).onclick = settingsModal;
   $('#fsSetup', el)?.addEventListener('click', settingsModal);
+  $('#lhExport', el)?.addEventListener('click', () => linkedHelperModal(null, 'funds'));
   const runCheck = async (ids, btn) => {
     if (btn) btn.disabled = true;
     try { const r = await call({ action: 'queue', ids }); toast(`${r.queued} queued. GitHub checks EDGAR hourly (at :10).`); await load(); draw(); }

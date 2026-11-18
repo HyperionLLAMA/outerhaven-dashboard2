@@ -49,11 +49,11 @@ function download(name, text) {
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
-export async function linkedHelperModal(onDone) {
-  let lane = store.get('hq-lh-lane') || 'credit', list = [];
+export async function linkedHelperModal(onDone, startLane) {
+  let lane = startLane || store.get('hq-lh-lane') || 'credit', list = [];
   const sender = () => store.get(`hq-lh-sender-${lane}`) || SENDER_DEFAULT[lane];
   const { el } = modal({
-    title: 'Export for Linked Helper', submit: 'Download', wide: true,
+    title: 'Export LinkedIn list (Linked Helper / Prosp)', submit: 'Download', wide: true,
     body: `<div class="form pForm">
       <label class="field">Lane<select class="select" name="lane">${Object.entries(LANES).map(([k, l]) => `<option value="${k}" ${k === lane ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field">Sent from (whose LinkedIn)<input class="input" name="sender" list="lhTeam" value="${esc(sender())}" required><datalist id="lhTeam">${TEAM.map(n => `<option value="${n}">`).join('')}</datalist></label>
@@ -83,9 +83,9 @@ export async function linkedHelperModal(onDone) {
     const n = Math.max(1, Number(nIn.value) || 50);
     box.innerHTML = list.length ? `<p class="s muted" style="margin:0 0 8px">${list.length} ready with a LinkedIn profile (not exported before, not in Prosp). Best score first. Untick anyone who looks wrong.</p>
       <table class="tbl obTbl"><thead><tr><th></th><th>Company</th><th>Person</th><th>Hook</th><th>LinkedIn</th></tr></thead><tbody>
-      ${list.map((x, i) => `<tr><td><input type="checkbox" name="pick" value="${i}" ${i < n ? 'checked' : ''} aria-label="Export ${esc(x.s.company_name)}"></td>
+      ${list.map((x, i) => `<tr><td><input type="checkbox" name="pick" value="${i}" ${i < n && x.p.status !== 'unconfirmed' ? 'checked' : ''} aria-label="Export ${esc(x.s.company_name)}"></td>
         <td><b>${esc(cleanName(x.s.company_name))}</b><br><span class="s muted">${x.kind === 'bdc' ? 'BDC' : x.kind === 'fund' ? 'Fund' : 'Public'} · score ${x.s.score}</span></td>
-        <td>${esc(x.p.name)}<br><span class="s muted">${esc(x.p.title || (x.p.role || '').toUpperCase())}${x.p.status === 'confirmed' ? ' · confirmed' : x.p.source === 'sec' ? ' · SEC' : ''}</span></td>
+        <td>${esc(x.p.name)}<br><span class="s muted">${esc(x.p.title || (x.p.role || '').toUpperCase())}${x.p.status === 'confirmed' ? ' · confirmed' : x.p.status === 'unconfirmed' ? ' · ? check profile' : x.p.source === 'sec' ? ' · SEC' : ''}</span></td>
         <td class="s">${x.hook ? esc(x.hook) : '<span class="muted">none</span>'}</td>
         <td><a href="${esc(x.p.linkedin)}" target="_blank" rel="noopener">✓ Open ↗</a></td></tr>`).join('')}</tbody></table>`
       : `<div class="empty">Nobody ready in this lane: no target with a LinkedIn profile that hasn't been exported. Profiles fill in as the contact lookup runs.</div>`;

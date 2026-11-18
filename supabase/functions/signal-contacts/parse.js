@@ -181,22 +181,35 @@ export function elsewhereFrom(results, name, company) {
 // when the profile title starts with their first and last name and the title or snippet names the firm (a distinctive firm word:
 // "Slauson", "Portal"), so a namesake at another job never matches. firm = the fund name minus "Fund II, L.P." (fund-web firmName).
 const FUND_WORDS = new Set('fund funds capital partners ventures venture management advisors advisers investments investment equity holdings fi lp gp i ii iii iv v vi'.split(' '));
-export function personProfile(results, name, firm) {
+// Nicknames people use on LinkedIn vs the legal name on a Form D (Abraham Othman = "Abe Othman").
+const NICK = Object.fromEntries('abraham:abe robert:bob,rob,bobby william:bill,will,billy james:jim,jimmy christopher:chris michael:mike edward:ed,ted,eddie andrew:andy,drew richard:rick,rich,dick thomas:tom,tommy joseph:joe,joey daniel:dan,danny david:dave stephen:steve steven:steve benjamin:ben jonathan:jon matthew:matt nicholas:nick alexander:alex timothy:tim gregory:greg kenneth:ken charles:charlie,chuck anthony:tony jeffrey:jeff douglas:doug samuel:sam peter:pete elizabeth:liz,beth katherine:kate,katie catherine:kate,katie jennifer:jen,jenny patricia:pat,trish susan:sue margaret:meg,maggie rebecca:becky zachary:zach jacob:jake joshua:josh frederick:fred ronald:ron donald:don lawrence:larry gerald:jerry raymond:ray'
+  .split(' ').map(x => { const [k, v] = x.split(':'); return [k, v.split(',')]; }));
+const sameFirst = (a, b) => a === b || (NICK[a] || []).includes(b) || (NICK[b] || []).includes(a);
+// Who is on a Form D -> their LinkedIn profile. match: 'firm' (firm named), 'city' (Form D city named; people move firms: Jacob Colker
+// AI2 -> AI House), 'name' (the only exact-name profile and its headline is just a location: unconfirmed, a person ticks it).
+// A headline naming another employer with neither firm nor city = a namesake, never taken.
+export function personProfile(results, name, firm, location = '') {
   const want = String(name || '').toLowerCase().replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter(w => w.length > 1);
   if (want.length < 2) return null;
   const key = distinct(brand(firm)).filter(w => !FUND_WORDS.has(w) && w.length >= 3);
+  const city = words(String(location || '').split(',')[0]).join(' ');
+  const named = [];
   for (const r of results || []) {
     const url = String(r?.url || '');
     if (!/^https:\/\/([a-z]{2,3}\.)?linkedin\.com\/in\//i.test(url)) continue;
     const title = String(r.title || '').replace(/\s*\|\s*LinkedIn\s*$/i, '').trim(), parts = title.split(/\s+[-–—|]\s+/);
     const got = (parts[0] || '').toLowerCase().replace(/,.*$/, '').replace(/[^a-z\s'-]/g, ' ').split(/\s+/).filter(w => w.length > 1);
-    if (!got.length || got[0] !== want[0] || got[got.length - 1] !== want[want.length - 1]) continue;
-    const text = words(`${title} ${r.description || ''}`).join(' ');
-    if (key.length && !key.some(w => ` ${text} `.includes(` ${w} `))) continue;
-    if (/\b(former|ex-|previously|retired)\b/i.test(parts.slice(1).join(' '))) continue;
-    return { name: parts[0].replace(/,.*$/, '').trim(), title: parts.slice(1).join(' - ').slice(0, 80), linkedin: url.split('?')[0], firm_checked: key.length > 0 };
+    if (!got.length || !sameFirst(got[0], want[0]) || got[got.length - 1] !== want[want.length - 1]) continue;
+    const rest = parts.slice(1).join(' - ');
+    if (/\b(former|ex-|previously|retired)\b/i.test(rest)) continue;
+    const text = ` ${words(`${title} ${r.description || ''}`).join(' ')} `;
+    const hit = m => ({ name: parts[0].replace(/,.*$/, '').trim(), title: rest.slice(0, 80), linkedin: url.split('?')[0], firm_checked: m !== 'name', match: m });
+    if (key.length && key.some(w => text.includes(` ${w} `))) return hit('firm');
+    if (city.length >= 3 && text.includes(` ${city} `)) return hit('city');
+    named.push({ url: url.split('?')[0], onlyPlace: !rest || /,|\barea\b/i.test(rest) && parts.length === 2, hit: hit('name') });
   }
-  return null;
+  const urls = new Set(named.map(n => n.url));
+  return urls.size === 1 && named[0].onlyPlace ? named[0].hit : null;
 }
 // Serper (Google) result -> the shape profileFrom / personProfile read (Brave's url / title / description).
 export const fromSerper = h => ({ url: h?.link || '', title: h?.title || '', description: h?.snippet || '' });

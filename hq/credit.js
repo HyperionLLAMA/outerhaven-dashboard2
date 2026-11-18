@@ -5,6 +5,7 @@ import { sb, state, esc, $, $$, toast, fail, modal, opts, firstName, fmtDate } f
 import { messageFor } from './outreach.js';
 import { whyBlock } from './kinds.js';
 import { loadContacts, contactHtml, bindContacts, bestPerson, contactsSetup, cfoChanged } from './contacts.js';
+import { linkedHelperModal } from './linkedhelper.js';
 import { markBtns, markLine, bindMarks, MARK_VIEWS, inMarkView } from './marks.js';
 import { me } from './tasks.js';
 
@@ -52,7 +53,7 @@ function draw() {
   onCount(counts.target);
   el.innerHTML = `<div class="fs">
     <div class="fsTop"><p class="pHint" style="padding:0;margin:0;max-width:640px">Small US public companies with debt they must refinance, a lender losing patience, or a going-concern warning. For Peter: private credit is their natural next lender.</p>
-      <div class="row fsBtns"><a class="btn sm ghost" href="${GH_RUN}" target="_blank" rel="noopener">Run a scan on GitHub ↗</a><button class="btn sm ghost" id="crHow">How it works</button><a class="btn sm ghost" href="#/rules">How we qualify</a><button class="btn sm ghost" id="ctSetup">Contacts setup</button></div></div>
+      <div class="row fsBtns"><button class="btn sm primary" id="lhExport">Export LinkedIn list</button><a class="btn sm ghost" href="${GH_RUN}" target="_blank" rel="noopener">Run a scan on GitHub ↗</a><button class="btn sm ghost" id="crHow">How it works</button><a class="btn sm ghost" href="#/rules">How we qualify</a><button class="btn sm ghost" id="ctSetup">Contacts setup</button></div></div>
     <p class="pHint">Source: SEC XBRL financials and full-text search (edgartools), refreshed daily on GitHub, free.${last ? ` Last run <b>${new Date(last.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b>${last.params?.period ? ` · balance sheets ${esc(last.params.period)}` : ''}.` : ' Not run yet: on GitHub choose Run workflow, mode <b>credit</b>.'}</p>
     <div class="fsViews">${[['target', 'Targets'], ['newcfo', 'New CFO + debt'], ['rescue', 'Rescue'], ['maybe', 'Maybe'], ['cut', 'Cut'], ['added', 'In pipeline'], ['dismissed', 'Dismissed'], ...MARK_VIEWS].map(([k, l]) => `<button type="button" data-view="${k}" class="${view === k ? 'on' : ''}" data-tone="${k === 'target' ? 'good' : k === 'cut' ? 'bad' : ''}">${l} <b>${counts[k]}</b></button>`).join('')}</div>
     ${Object.keys(tagCounts).length ? `<div class="fsViews" aria-label="Filter by lender fit"><button type="button" data-tag="" class="${tag ? '' : 'on'}">All <b>${inView.length}</b></button>${Object.keys(TAGS).filter(k => tagCounts[k]).map(k => `<button type="button" data-tag="${k}" class="${tag === k ? 'on' : ''}">${esc(tagTxt(k))} <b>${tagCounts[k]}</b></button>`).join('')}</div>` : ''}
@@ -128,6 +129,7 @@ function bind(shown) {
   bindMarks(el, { table: 'credit_signals', find, redraw: draw });
   bindContacts(el, 'credit', draw);
   $('#ctSetup', el)?.addEventListener('click', contactsSetup);
+  $('#lhExport', el)?.addEventListener('click', () => linkedHelperModal(null, 'credit'));
   $$('[data-view]', el).forEach(b => b.onclick = () => { view = b.dataset.view; draw(); });
   $$('[data-tag]', el).forEach(b => b.onclick = () => { tag = b.dataset.tag; draw(); });
   $('#crHow', el).onclick = howModal;

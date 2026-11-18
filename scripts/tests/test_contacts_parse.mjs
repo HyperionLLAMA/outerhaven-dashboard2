@@ -128,5 +128,14 @@ console.log('ownership: ok');
   assert.equal(personProfile([r('Jane Doe - Investor | LinkedIn', 'https://www.linkedin.com/in/y', 'Experience: Slauson & Co. · Location: LA')], 'Jane M Doe', 'Slauson & Co. Fund II, L.P.').linkedin, 'https://www.linkedin.com/in/y', 'firm in the snippet, middle initial on the filing');
   assert.equal(personProfile([r('John Doe - Slauson | LinkedIn')], 'Jane Doe', 'Slauson Fund II'), null, 'different first name');
   assert.equal(personProfile([r('Jane Doe - Former Partner at Slauson | LinkedIn')], 'Jane Doe', 'Slauson Fund II'), null);
+  // 19 Nov 2026: 127 of 271 fund targets had no LinkedIn; real misses below.
+  const colker = personProfile([r('Jacob Colker - AI House | LinkedIn', 'https://www.linkedin.com/in/jacobcolker', 'Seattle, Washington · Founder')], 'Jacob Colker', 'AI2 INVESTMENT PARTNERS II, L.P.', 'SEATTLE, WA');
+  assert.equal(colker?.match, 'city', 'moved firm, same city as the Form D');
+  const abe = personProfile([r('Abe Othman - AngelList | LinkedIn', 'https://www.linkedin.com/in/abe')], 'Abraham Othman', 'AngelList Partnership Holdings II, LP', 'Seattle, WA');
+  assert.equal(abe?.match, 'firm', 'nickname');
+  const rahil = personProfile([r('Rahil Rangwala - Mumbai, Maharashtra, India | LinkedIn', 'https://in.linkedin.com/in/rahil')], 'Rahil Rangwala', 'Accion Venture Lab Fund II, LP', 'Washington, DC');
+  assert.equal(rahil?.match, 'name', 'location-only headline: unconfirmed');
+  assert.equal(personProfile([r('Jane Doe - Partner at Acme Ventures | LinkedIn')], 'Jane Doe', 'Slauson Fund II', 'Boston, MA'), null, 'other employer, other city: namesake');
+  assert.equal(personProfile([r('Jane Doe - Boston | LinkedIn', 'https://www.linkedin.com/in/a'), r('Jane Doe - Denver, CO | LinkedIn', 'https://www.linkedin.com/in/b')], 'Jane Doe', 'Slauson Fund II', 'Austin, TX'), null, 'two namesakes, no evidence');
   console.log('fund people ok');
 }
