@@ -137,5 +137,9 @@ console.log('ownership: ok');
   assert.equal(rahil?.match, 'name', 'location-only headline: unconfirmed');
   assert.equal(personProfile([r('Jane Doe - Partner at Acme Ventures | LinkedIn')], 'Jane Doe', 'Slauson Fund II', 'Boston, MA'), null, 'other employer, other city: namesake');
   assert.equal(personProfile([r('Jane Doe - Boston | LinkedIn', 'https://www.linkedin.com/in/a'), r('Jane Doe - Denver, CO | LinkedIn', 'https://www.linkedin.com/in/b')], 'Jane Doe', 'Slauson Fund II', 'Austin, TX'), null, 'two namesakes, no evidence');
+  // Exa results: title = bare name, description = the profile text. Four namesakes, none in the firm or city: nobody.
+  const ex = (u, t) => ({ url: `https://www.linkedin.com/in/${u}`, title: 'raymond larson', description: t });
+  assert.equal(personProfile([ex('a', 'Never Finish 2nd! Dallas-Fort Worth Metroplex'), ex('b', 'Stepping Stone Equity St. Petersburg, Florida')], 'Raymond Larson', '8DC Foundation Frontier Fund I, LP', 'PROVO, UT'), null);
+  assert.equal(personProfile([ex('a', 'Managing Partner at 8DC Foundation · Provo, Utah')], 'Raymond Larson', '8DC Foundation Frontier Fund I, LP', 'PROVO, UT')?.match, 'firm');
   console.log('fund people ok');
 }

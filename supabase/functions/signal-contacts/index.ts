@@ -60,6 +60,16 @@ async function serper(q: string, key: string) {
   return (((await r.json())?.organic || []) as any[]).map(fromSerper);
 }
 
+// Exa people search (19 Nov 2026): last pass for fund GPs Google misses. ~$0.007 a search. Each result carries the profile text
+// (headline, location, experience), which personProfile checks for the firm / Form D city like a search snippet.
+async function exaPeople(q: string, key: string) {
+  const r = await fetch("https://api.exa.ai/search", { method: "POST", headers: { "content-type": "application/json", "x-api-key": key },
+    body: JSON.stringify({ query: q, category: "linkedin profile", numResults: 8, contents: { text: { maxCharacters: 1500 } } }) });
+  if (!r.ok) return [];
+  return (((await r.json())?.results || []) as any[]).filter(x => /linkedin\.com\/in\//.test(x?.url || ""))
+    .map(x => ({ url: String(x.url).replace(/^https?:\/\/(www\.)?linkedin/, "https://www.linkedin"), title: x.title || "", description: x.text || "" }));
+}
+
 // Re-judge BDC rows after their owner changed (rules live in the bdc-signals function).
 async function rejudgeBdc(keys: string[]) {
   const k = await secret("FUND_INGEST_SECRET");
@@ -202,11 +212,11 @@ async function email(kind: string, key: string, name: string, role = "", typed =
 // (Serper; Brave if no Serper key). Stored as signal_contacts kind 'fund', key = fund_key (one row per fund, not per vehicle).
 const firmOf = (n: string) => String(n || "").replace(/\([^)]*\)/g, " ").replace(/,?\s*\b(l\.?\s?p\.?|llc|l\.?l\.?c\.?|ltd|inc|scsp)\b\.?/gi, " ")
   .replace(/\s+(?:fund\s+)?(?:[IVX]{1,4}|\d{1,2})(?:-[A-Z0-9]+)?\b.*$/i, "").replace(/\s+fund\b.*$/i, "").replace(/[,\s]+$/, "").replace(/\s+/g, " ").trim();
-const FUND_MISS = "No LinkedIn match for the Form D names (v2: nicknames, city, last name + firm).";
+const FUND_MISS = "No LinkedIn match for the Form D names (v2: nicknames, city, last name + firm, Exa).";
 async function lookupFund(fundKey: string) {
   const s = (await sb.from("fund_signals").select("company_name,executives,check_keyword").eq("fund_key", fundKey).order("score", { ascending: false }).limit(1).maybeSingle()).data;
   if (!s) throw new Error("Fund not found");
-  const sk = await secret("SERPER_API_KEY"), bk = sk ? "" : await secret("BRAVE_SEARCH_KEY");
+  const sk = await secret("SERPER_API_KEY"), bk = sk ? "" : await secret("BRAVE_SEARCH_KEY"), ek = await secret("EXA_API_KEY");
   if (!sk && !bk) return { ok: false, note: "no key" };
   const firm = firmOf(s.company_name) || s.check_keyword || s.company_name;
   const row = await getRow("fund", fundKey), now = new Date().toISOString();
@@ -217,6 +227,7 @@ async function lookupFund(fundKey: string) {
     let hit = personProfile(await search(`"${p.name}" ${firm} site:linkedin.com/in`), p.name, firm, p.location);
     // Miss: last name + firm brand (finds "Abe Othman" for Abraham Othman, and profiles whose headline drops the legal name).
     if (!hit) hit = personProfile(await search(`${String(p.name).trim().split(/\s+/).pop()} ${searchName(firm) || firm} site:linkedin.com/in`), p.name, firm, p.location);
+    if (!hit && ek) hit = personProfile(await exaPeople(`${p.name} ${firm}`, ek), p.name, firm, p.location);
     return { name: p.name, role: "gp", title: hit?.title || p.title || null, linkedin: hit?.linkedin || null, match: hit?.match || null,
       ...(hit?.match === "name" ? { status: "unconfirmed" } : {}), source: "formd", li_checked: now };
   }));
