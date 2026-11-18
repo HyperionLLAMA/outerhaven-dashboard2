@@ -78,18 +78,19 @@ export async function linkedHelperModal(onDone, startLane) {
     },
   });
   const box = $('#lhList', el), nIn = $('[name=n]', el), btn = $('button[type=submit]', el);
-  const recount = () => { const n = $$('[name=pick]:checked', el).length; btn.textContent = n ? `Download ${n}` : 'Nothing ticked'; btn.disabled = !n; };
+  const recount = () => { const n = $$('[name=pick]:checked', el).length, all = $('#lhAll', el); if (all) { const t = $$('[name=pick]', el).length; all.checked = !!t && n === t; all.indeterminate = n > 0 && n < t; } btn.textContent = n ? `Download ${n}` : 'Nothing ticked'; btn.disabled = !n; };
   const draw = () => {
     const n = Math.max(1, Number(nIn.value) || 50);
     box.innerHTML = list.length ? `<p class="s muted" style="margin:0 0 8px">${list.length} ready with a LinkedIn profile (not exported before, not in Prosp). Best score first. Untick anyone who looks wrong.</p>
-      <table class="tbl obTbl"><thead><tr><th></th><th>Company</th><th>Person</th><th>Hook</th><th>LinkedIn</th></tr></thead><tbody>
+      <table class="tbl obTbl"><thead><tr><th><input type="checkbox" id="lhAll" aria-label="Select all"></th><th>Company</th><th>Person</th><th>Hook</th><th>LinkedIn</th></tr></thead><tbody>
       ${list.map((x, i) => `<tr><td><input type="checkbox" name="pick" value="${i}" ${i < n && x.p.status !== 'unconfirmed' ? 'checked' : ''} aria-label="Export ${esc(x.s.company_name)}"></td>
         <td><b>${esc(cleanName(x.s.company_name))}</b><br><span class="s muted">${x.kind === 'bdc' ? 'BDC' : x.kind === 'fund' ? 'Fund' : 'Public'} · score ${x.s.score}</span></td>
         <td>${esc(x.p.name)}<br><span class="s muted">${esc(x.p.title || (x.p.role || '').toUpperCase())}${x.p.status === 'confirmed' ? ' · confirmed' : x.p.status === 'unconfirmed' ? ' · ? check profile' : x.p.source === 'sec' ? ' · SEC' : ''}</span></td>
         <td class="s">${x.hook ? esc(x.hook) : '<span class="muted">none</span>'}</td>
         <td><a href="${esc(x.p.linkedin)}" target="_blank" rel="noopener">✓ Open ↗</a></td></tr>`).join('')}</tbody></table>`
       : `<div class="empty">Nobody ready in this lane: no target with a LinkedIn profile that hasn't been exported. Profiles fill in as the contact lookup runs.</div>`;
-    $$('[name=pick]', el).forEach(b => b.addEventListener('change', recount)); recount();
+    $$('[name=pick]', el).forEach(b => b.addEventListener('change', recount));
+    $('#lhAll', el)?.addEventListener('change', e => { $$('[name=pick]', el).forEach(b => b.checked = e.target.checked); recount(); }); recount();
   };
   const load = async () => { box.innerHTML = '<div class="empty">Loading…</div>'; list = await rowsFor(lane); draw(); };
   $('[name=lane]', el).addEventListener('change', e => { lane = e.target.value; store.set('hq-lh-lane', lane); $('[name=sender]', el).value = sender(); load(); });
