@@ -141,5 +141,6 @@ console.log('ownership: ok');
   const ex = (u, t) => ({ url: `https://www.linkedin.com/in/${u}`, title: 'raymond larson', description: t });
   assert.equal(personProfile([ex('a', 'Never Finish 2nd! Dallas-Fort Worth Metroplex'), ex('b', 'Stepping Stone Equity St. Petersburg, Florida')], 'Raymond Larson', '8DC Foundation Frontier Fund I, LP', 'PROVO, UT'), null);
   assert.equal(personProfile([ex('a', 'Managing Partner at 8DC Foundation · Provo, Utah')], 'Raymond Larson', '8DC Foundation Frontier Fund I, LP', 'PROVO, UT')?.match, 'firm');
+  assert.equal(personProfile([r('John Barker - Senior Corporate Advisor | LinkedIn', 'https://au.linkedin.com/in/jb', 'Sydney · high-yield bonds')], 'John Barker', 'ECM Yield Fund II, LLC', 'Chicago, IL'), null, 'generic fund word is not the firm');
   console.log('fund people ok');
 }

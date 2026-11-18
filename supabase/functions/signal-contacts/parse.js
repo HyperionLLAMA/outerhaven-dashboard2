@@ -180,7 +180,11 @@ export function elsewhereFrom(results, name, company) {
 // Fund GPs (13 Nov 2026): a Form D names the people ("Jane Doe, Managing Member"); find THAT person's LinkedIn. A result counts
 // when the profile title starts with their first and last name and the title or snippet names the firm (a distinctive firm word:
 // "Slauson", "Portal"), so a namesake at another job never matches. firm = the fund name minus "Fund II, L.P." (fund-web firmName).
-const FUND_WORDS = new Set('fund funds capital partners ventures venture management advisors advisers investments investment equity holdings fi lp gp i ii iii iv v vi'.split(' '));
+const FUND_WORDS = new Set(('fund funds capital partners ventures venture management advisors advisers investments investment equity holdings fi lp gp i ii iii iv v vi '
+  // Strategy words in fund names that any profile can contain (ECM Yield Fund II matched an unrelated adviser on "yield", 19 Nov 2026).
+  + 'yield income secured growth opportunity opportunities opportunistic innovation credit private loan loans debt lending real estate property properties '
+  + 'new global strategic select value impact seed early stage frontier foundation tech technology digital health energy infrastructure multi strategy '
+  + 'diversified special situations senior direct partnership series qp feeder master offshore onshore parallel co invest').split(' '));
 // Nicknames people use on LinkedIn vs the legal name on a Form D (Abraham Othman = "Abe Othman").
 const NICK = Object.fromEntries('abraham:abe robert:bob,rob,bobby william:bill,will,billy james:jim,jimmy christopher:chris michael:mike edward:ed,ted,eddie andrew:andy,drew richard:rick,rich,dick thomas:tom,tommy joseph:joe,joey daniel:dan,danny david:dave stephen:steve steven:steve benjamin:ben jonathan:jon matthew:matt nicholas:nick alexander:alex timothy:tim gregory:greg kenneth:ken charles:charlie,chuck anthony:tony jeffrey:jeff douglas:doug samuel:sam peter:pete elizabeth:liz,beth katherine:kate,katie catherine:kate,katie jennifer:jen,jenny patricia:pat,trish susan:sue margaret:meg,maggie rebecca:becky zachary:zach jacob:jake joshua:josh frederick:fred ronald:ron donald:don lawrence:larry gerald:jerry raymond:ray'
   .split(' ').map(x => { const [k, v] = x.split(':'); return [k, v.split(',')]; }));
