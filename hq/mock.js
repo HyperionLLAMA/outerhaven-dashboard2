@@ -127,6 +127,7 @@
   const ago1 = n => new Date(Date.now() - n * 864e5).toISOString();
   db.outreach_settings = [{ id: 1, prosp: [{ owner: 'Peter', campaign_id: 'c1', list_id: 'l1', campaign_name: 'Private credit Q4' }], plusvibe_workspace_id: 'ws1', plusvibe_campaign_id: 'pv1', bdc_per_day: 10, credit_per_day: 10, min_email_score: 90 }];
   db.outreach_enrollments = [];
+  db.lh_exports = [{ id: 'lh1', kind: 'credit', key: '101', lane: 'credit', sender: 'Tengku', version: 'A', status: 'exported', linkedin_url: 'x', batch_id: 'b1', created_at: '2026-11-18T10:00:00Z' }];
   db.signal_contacts = [
     { kind: 'credit', key: '101', company_name: 'Harbor Fabrication Inc.', domain: 'harborfab.example', people: [{ name: 'Lena Ortiz', title: 'Chief Financial Officer', role: 'cfo', source: 'sec', linkedin: 'https://www.linkedin.com/in/example2', email: 'lortiz@harborfab.example', email_score: 96, email_status: 'valid' }] },
     { kind: 'credit', key: '103', company_name: 'Northline Logistics Holdings', phone: '312-555-0142', website: 'https://northlinelogistics.com', domain: 'northlinelogistics.com', sec_checked_at: ago1(1), looked_up_at: ago1(1),
