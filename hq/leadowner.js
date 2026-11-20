@@ -46,3 +46,15 @@ export function touchFields(p, met, now = new Date().toISOString()) {
   const me = meName() || teamName(p?.owner_name) || null;
   return { last_touch_by: me, last_touch_at: now, touch_count: (p?.touch_count || 0) + (met ? 1 : 0) };
 }
+
+// Follow-up message for the round robin (21 Nov 2026, Tengku). Plain, editable before it's copied. Internal notes (recap, next-step
+// tasks) never go into it: they're written for us, not for the lead. sender = whose turn it is; owner = who they first spoke to.
+export const CHANNELS = [['linkedin', 'LinkedIn'], ['email', 'Email'], ['whatsapp', 'WhatsApp']];
+export function followUpMsg({ name, sender, owner, met, channel }) {
+  const first = String(name || '').trim().split(/\s+/)[0] || 'there';
+  const intro = sender && owner && sender !== owner ? `${sender} here from OuterHaven, I work alongside ${owner}.` : `${sender || 'Tengku'} from OuterHaven here.`;
+  const body = met ? 'Good speaking with you recently. Is there anything we can help move forward on your side this month?'
+    : 'Following up on my last note. Would a short call this week or next be useful?';
+  const text = `Hi ${first}, ${intro} ${body}`;
+  return channel === 'email' ? { subject: met ? 'Following up' : 'Quick follow-up', text: `${text}\n\nRegards,\n${sender || 'Tengku'}\nOuterHaven` } : { text };
+}

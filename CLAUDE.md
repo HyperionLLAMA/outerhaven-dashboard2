@@ -103,6 +103,13 @@ Today, Schedule, Resources (no one holds it right now, the role still exists). R
   All moves go through `setStage()`. Moving a person back before `MET_FROM` clears `met_at` (mis-click), so they return to their owner.
   The update window now redraws the board after Save (before, it only cleared the cache, so a saved move looked like it hadn't worked).
 - Migration `supabase/2026-11-04-lead-owners-rotation-brief.sql` (columns only; the To Reach Out stage move is an UPDATE the user runs).
+- **Recap, channels, priority, follow-up message (21 Nov 2026, Tengku: accountability SOP = after every meeting the lead owner writes a
+  recap + next step and moves the card on):** `people.about` (what they are), `meeting_recap` + `recap_at` / `recap_by`, `channels` text[]
+  (linkedin | email | whatsapp), `priority` 1–10. All in the Pipeline update window. Flag `norecap` "No meeting recap" (warn) on met people
+  with no recap, or none since `met_at`. Priority shows as a big number on board cards / rows (`priHtml`; 8+ = `--good`, ≤3 muted).
+  The window drafts one editable follow-up per ticked channel from whoever's turn it is (`followUpMsg()` in leadowner.js, test
+  `node scripts/tests/test_followup.mjs`); recaps and next-step tasks never go into the message (internal). Migration
+  `supabase/2026-11-21-lead-recap-priority.sql`.
 
 ## Deals (sidebar page `#/deals`, `hq/deals.js` `renderDealsPage`, admin only; 7 Oct 2026)
 - Deals PROVIDED to us (mandates, teasers, CIMs from sponsors / banks / introducers) for Peter to review. Not outbound targets.

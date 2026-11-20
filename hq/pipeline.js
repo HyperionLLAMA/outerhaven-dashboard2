@@ -6,7 +6,7 @@ import { renderFunds, fundTargetCount } from './funds.js';
 import { renderCredit, creditTargetCount } from './credit.js';
 import { renderUcc, uccTargetCount } from './ucc.js';
 import { renderBdc, bdcTargetCount } from './bdc.js';
-import { ROTATION, REACH, MET_FROM, CADENCE, meName, teamName, isMet, nextSender, touchDue, touchFields, pickOwner } from './leadowner.js';
+import { ROTATION, REACH, MET_FROM, CADENCE, meName, teamName, isMet, nextSender, touchDue, touchFields, pickOwner, CHANNELS, followUpMsg } from './leadowner.js';
 import { briefModal, syncBriefs, briefLine } from './brief.js';
 
 const BUY = [REACH, 'New Relationship', 'Diligence Call Complete', 'NDA Signed + Thesis Captured', 'Relevant Deal Identified', 'Interest Meeting Held', 'Buyer Interest Confirmed', 'Engagement Active', 'Closed'];
@@ -146,6 +146,8 @@ function mk(i, today) {
     else add('noball', 'warn', 'Nobody owns the next move');
     if (!i.nextText && !td) add('nonext', 'warn', 'No next step');
     if (!i.met && p && !p.brief && 'brief' in p) add('nobrief', 'warn', 'No pre-meeting brief');
+    // SOP (21 Nov 2026): after every meeting the lead owner writes a recap. Met with none, or none since the meeting = flag.
+    if (i.met && p && 'meeting_recap' in p && (!p.meeting_recap || (p.met_at && p.recap_at && p.recap_at < p.met_at))) add('norecap', 'warn', 'No meeting recap');
     const od = i.tasks.filter(t => t.due_date && t.due_date < today);
     if (od.length) add('overdue', 'bad', `${od.length} overdue task${od.length > 1 ? 's' : ''}`);
     const idle = daysSince(i.updated);
@@ -253,6 +255,8 @@ function draw() {
   if (tab === 'credit') renderCredit($('#crPanel'), n => { const em = $('[data-tab="credit"] em', root); if (em) em.textContent = n; });
 }
 
+// Priority 1-10 (21 Nov 2026): a big number on the card; 8+ in the good colour (blue in colour-blind mode), 3 or less muted.
+const priHtml = p => p?.priority ? `<span class="pcPri" data-p="${p.priority >= 8 ? 'hi' : p.priority <= 3 ? 'lo' : 'mid'}" title="Priority ${p.priority} of 10">${p.priority}</span>` : '';
 const flagChip = f => `<span class="pFlag ${f.sev}">${esc(f.text)}</span>`;
 // Who this lead talks to: the sticky owner before the first meeting, whoever's turn it is after it.
 const whoHtml = i => i.met && i.person
@@ -265,7 +269,7 @@ function rowHtml(i) {
     : i.ball === 'them' ? `<button class="btn sm" data-q="replied" data-k="${i.kind}:${i.id}">They replied</button><button class="btn sm" data-q="chased" data-k="${i.kind}:${i.id}">Chased again</button>`
       : `<button class="btn sm" data-q="us" data-k="${i.kind}:${i.id}">Our move</button><button class="btn sm" data-q="them" data-k="${i.kind}:${i.id}">Their move</button>`;
   return `<div class="pRow" data-sev="${i.sev}"><span class="pDot"></span>
-    <div class="pMain"><div class="pTitle">${esc(i.name)}</div><div class="pSub">${esc(i.stage || 'No stage')} · ${i.kind === 'deal' ? 'Deal' : 'Relationship'} · ${sideShort(i.side)}${i.sub ? ' · ' + esc(i.sub) : ''}</div>
+    <div class="pMain"><div class="pTitle">${priHtml(i.person)}${esc(i.name)}</div><div class="pSub">${esc(i.stage || 'No stage')} · ${i.kind === 'deal' ? 'Deal' : 'Relationship'} · ${sideShort(i.side)}${i.sub ? ' · ' + esc(i.sub) : ''}</div>
       <div class="pFlags">${i.flags.filter(f => f.sev !== 'info' && f.code !== 'nonext').map(flagChip).join('')}</div>
       <div class="pNext">${i.nextText ? `<b>Next:</b> ${esc(i.nextText)}${i.due ? ` <span class="muted">· due ${fmtDate(i.due)}</span>` : ''}` : i.reach ? '<i>Send the first message</i>' : i.met && i.person ? `<i>Stay in touch every ${CADENCE[Math.min(i.person?.touch_count || 0, CADENCE.length - 1)]}d</i>` : '<i>No next step set</i>'}${whoHtml(i) ? ` ${whoHtml(i)}` : i.owner ? ` <span class="pOwn">${avatar(i.owner, 'xs')}${esc(firstName(i.owner))}</span>` : ''}</div>
       ${i.person ? briefLine(i.person) : ''}</div>
@@ -301,7 +305,7 @@ function cardHtml(i, hit) {
   const ballTxt = i.reach ? 'Not contacted' : i.has('touch') ? 'Follow-up due' : i.ball === 'us' ? 'Our move' : i.ball === 'them' ? 'Their move' : 'Nobody owns it';
   const tip = [i.sub, ...extra.map(f => f.text)].filter(Boolean).join(' · '); // detail lives in the tooltip and the click-through modal
   return `<div role="button" tabindex="0" draggable="true" class="pCard pk ${hit ? 'hit' : ''}" data-sev="${i.sev}" data-upd="${key}" data-drag="${key}"${tip ? ` title="${esc(tip)}"` : ''}>
-    <div class="pcHead"><b class="pcName">${esc(i.name)}</b>${size ? `<span class="pcSize">${esc(size)}</span>` : ''}</div>
+    <div class="pcHead">${priHtml(i.person)}<b class="pcName">${esc(i.name)}</b>${size ? `<span class="pcSize">${esc(size)}</span>` : ''}</div>
     <div class="pkMeta"><span class="pkBall" data-tone="${tone2}">${ballTxt} · ${i.days}d</span>${extra.length ? `<span class="pkExtra ${extra[0].sev}">${extra.length > 1 ? `${extra.length} flags` : esc(extra[0].text)}</span>` : ''}<span class="pcAct">${hasDms(i) ? `<button type="button" class="pcLink" data-dm="${key}">DMs</button>` : ''}${nx ? `<button type="button" class="pkAdv" data-adv="${key}" title="Move to ${esc(nx)}" aria-label="Move to ${esc(nx)}">→</button>` : ''}</span></div>
     <div class="pkRow"><p class="pkNext ${nextTxt ? '' : 'none'}">${nextTxt ? esc(nextTxt) : 'No next step set'}</p>
     ${cardWho(i)}</div></div>`;
@@ -495,7 +499,12 @@ function updateModal(i) {
       <p class="muted s" style="margin:0;align-self:end">${i.met ? `Met. Follow-ups rotate ${ROTATION.join(' → ')}; next is <b>${esc(i.nextBy)}</b>.` : 'Talks to this one person until the first meeting.'}</p>` : ''}
       ${i.person ? `<div style="grid-column:1/-1">${briefLine(i.person, true)}</div>
       <label class="field">Will they pay?<select class="select" name="pay">${opts(PAY, i.person.pay_score == null ? '' : String(i.person.pay_score))}</select></label>
-      <label class="field">What they said about fees<input class="input" name="paynote" value="${esc(i.person.pay_note || '')}" placeholder="e.g. only success fee, asked for terms"></label>` : ''}
+      <label class="field">What they said about fees<input class="input" name="paynote" value="${esc(i.person.pay_note || '')}" placeholder="e.g. only success fee, asked for terms"></label>
+      <label class="field">Priority (1 low, 10 top)<select class="select" name="prio">${opts([['', '— not set —'], ...Array.from({ length: 10 }, (_, k) => [String(10 - k), String(10 - k)])], i.person.priority ? String(i.person.priority) : '')}</select></label>
+      <div class="field">Can reach them on<div class="row" style="gap:14px;flex-wrap:wrap;padding-top:6px">${CHANNELS.map(([k, l]) => `<label class="row s" style="gap:6px"><input type="checkbox" name="ch" value="${k}" ${(i.person.channels || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div></div>
+      <label class="field" style="grid-column:1/-1">What they are<textarea class="input" name="about" rows="2" placeholder="e.g. Family office in Dubai, writes $5-20M cheques into US private credit">${esc(i.person.about || '')}</textarea></label>
+      <label class="field" style="grid-column:1/-1"><span>Meeting recap${i.person.recap_at ? ` <span class="muted s">· last written ${fmtDate(i.person.recap_at)}${i.person.recap_by ? ' by ' + esc(i.person.recap_by) : ''}</span>` : i.met ? ' <span class="s" style="color:var(--warn)">· needed after every meeting</span>' : ''}</span><textarea class="input" name="recap" rows="3" placeholder="What was said, what they want, what we promised">${esc(i.person.meeting_recap || '')}</textarea></label>
+      <div class="field" style="grid-column:1/-1"><span>Follow-up message <span class="muted s">· from ${esc(i.nextBy || i.leadOwner || who)}, edit before you copy</span></span><div id="pFu"></div></div>` : ''}
       ${open.length ? `<div class="field" style="grid-column:1/-1">Open tasks, tick what is done<div class="pTasks">${open.map(t => `<label><input type="checkbox" name="done" value="${t.id}"> <span>${esc(t.action)}</span><em class="muted s">${t.owner_name ? esc(firstName(t.owner_name)) : ''}${t.due_date ? ' · ' + fmtDate(t.due_date) : ''}${t.due_date && t.due_date < todayIso() ? ' · overdue' : ''}</em></label>`).join('')}</div></div>` : ''}
       <label class="field" style="grid-column:1/-1">Add the next step<input class="input" name="next" placeholder="${open.length ? 'Another step (optional)' : 'What is the next move?'}"></label>
       <label class="field">Owner<input class="input" name="owner" value="${esc(i.owner || who)}"></label>
@@ -510,6 +519,13 @@ function updateModal(i) {
         const pay = fd.get('pay') === '' ? null : +fd.get('pay'), note = String(fd.get('paynote') || '').trim() || null;
         if (pay !== (i.person?.pay_score ?? null)) Object.assign(pExtra, { pay_score: pay, pay_at: now });
         if (note !== (i.person?.pay_note || null)) pExtra.pay_note = note;
+      }
+      if (fd.has('about')) {
+        const about = String(fd.get('about') || '').trim() || null, recap = String(fd.get('recap') || '').trim() || null, prio = fd.get('prio') ? +fd.get('prio') : null, ch = fd.getAll('ch');
+        if (about !== (i.person.about || null)) pExtra.about = about;
+        if (recap !== (i.person.meeting_recap || null)) Object.assign(pExtra, { meeting_recap: recap, recap_at: recap ? now : null, recap_by: recap ? who || null : null });
+        if (prio !== (i.person.priority ?? null)) pExtra.priority = prio;
+        if (ch.join() !== (i.person.channels || []).join()) pExtra.channels = ch;
       }
       if (ballChanged) { base.waiting_on = ball; base.waiting_on_since = now; }
       if (park) base.pipeline_active = false;
@@ -530,6 +546,18 @@ function updateModal(i) {
     },
   });
   const f = $('.modal'), sd = $('[name=side]', f), stg = $('[name=stage]', f);
+  const fu = $('#pFu', f);
+  if (fu) {   // one editable draft per ticked channel, from whoever's turn it is
+    const draw = () => {
+      const ch = $$('[name=ch]:checked', f).map(b => b.value);
+      fu.innerHTML = ch.length ? ch.map(c => { const m = followUpMsg({ name: i.person.name || i.name, sender: i.nextBy || i.leadOwner || who, owner: i.leadOwner || teamName(i.person.owner_name), met: i.met, channel: c });
+        return `<div class="s" style="margin:6px 0 2px"><b>${CHANNELS.find(x => x[0] === c)[1]}</b>${m.subject ? ` · subject: ${esc(m.subject)}` : ''} <button type="button" class="btn sm ghost" data-copyfu="${c}">Copy</button>${c === 'linkedin' && i.person.linkedin_url ? ` <a class="btn sm ghost" href="${esc(i.person.linkedin_url)}" target="_blank" rel="noopener">Open LinkedIn ↗</a>` : ''}</div>
+          <textarea class="input" rows="${c === 'email' ? 5 : 3}" data-fu="${c}">${esc(m.text)}</textarea>`; }).join('')
+        : '<p class="muted s" style="margin:6px 0 0">Tick a channel above to get a message.</p>';
+      $$('[data-copyfu]', fu).forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText($(`[data-fu="${b.dataset.copyfu}"]`, fu).value); toast('Copied'); } catch { toast('Copy failed: select the text instead'); } });
+    };
+    $$('[name=ch]', f).forEach(b => b.addEventListener('change', draw)); draw();
+  }
   $('[data-openbrief]', f)?.addEventListener('click', () => { $('[data-x]', f).click(); briefModal(i.person, i.kind === 'deal' ? i.row : null, reload); });
   if (sd) sd.onchange = () => { const l = stagesFor(sd.value); stg.innerHTML = opts(l, l.includes(stg.value) ? stg.value : l[0]); };
 }
@@ -578,6 +606,18 @@ function addDealModal() {
   });
   // Stage list follows the side.
   const f = $('.modal'), sd = $('[name=side]', f), stg = $('[name=stage]', f);
+  const fu = $('#pFu', f);
+  if (fu) {   // one editable draft per ticked channel, from whoever's turn it is
+    const draw = () => {
+      const ch = $$('[name=ch]:checked', f).map(b => b.value);
+      fu.innerHTML = ch.length ? ch.map(c => { const m = followUpMsg({ name: i.person.name || i.name, sender: i.nextBy || i.leadOwner || who, owner: i.leadOwner || teamName(i.person.owner_name), met: i.met, channel: c });
+        return `<div class="s" style="margin:6px 0 2px"><b>${CHANNELS.find(x => x[0] === c)[1]}</b>${m.subject ? ` · subject: ${esc(m.subject)}` : ''} <button type="button" class="btn sm ghost" data-copyfu="${c}">Copy</button>${c === 'linkedin' && i.person.linkedin_url ? ` <a class="btn sm ghost" href="${esc(i.person.linkedin_url)}" target="_blank" rel="noopener">Open LinkedIn ↗</a>` : ''}</div>
+          <textarea class="input" rows="${c === 'email' ? 5 : 3}" data-fu="${c}">${esc(m.text)}</textarea>`; }).join('')
+        : '<p class="muted s" style="margin:6px 0 0">Tick a channel above to get a message.</p>';
+      $$('[data-copyfu]', fu).forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText($(`[data-fu="${b.dataset.copyfu}"]`, fu).value); toast('Copied'); } catch { toast('Copy failed: select the text instead'); } });
+    };
+    $$('[name=ch]', f).forEach(b => b.addEventListener('change', draw)); draw();
+  }
   sd.onchange = () => { const l = stagesFor(sd.value); stg.innerHTML = opts(l, sd.value === 'Buy Side' ? 'Relevant Deal Identified' : 'Opportunity Received'); };
 }
 

@@ -1473,3 +1473,12 @@ body,.card,.kpi,.checklist,.side{transition:background-color .2s,border-color .2
 .fsMat{margin:8px 0;padding:8px 10px;border-left:3px solid var(--good);background:var(--sunk);border-radius:6px;font-size:var(--fs-s)}
 .fsMat ul{margin:6px 0 0;padding-left:18px}.fsMat li{margin:3px 0;color:var(--ink-2)}
 .fsMat.none{border-left-color:var(--warn);color:var(--ink-2)}
+
+/* Priority 1-10 on lead cards (21 Nov 2026) */
+.pcPri{flex:none;font-size:22px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;margin-right:8px;color:var(--ink-2)}
+.pcPri[data-p="hi"]{color:var(--good)}
+.pcPri[data-p="lo"]{color:var(--muted, var(--ink-3));font-weight:600}
+.pTitle .pcPri{font-size:18px;vertical-align:-2px}
+.pcHead:has(.pcPri){align-items:center;justify-content:flex-start}
+.pcHead:has(.pcPri) .pcSize{margin-left:auto}
+.pForm textarea.input{height:auto;min-height:0;resize:vertical;line-height:1.45;padding-top:8px;padding-bottom:8px}
