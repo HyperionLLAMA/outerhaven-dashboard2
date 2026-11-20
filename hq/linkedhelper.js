@@ -21,7 +21,7 @@ async function rowsFor(lane) {
   const done = new Map([...(en.data || []).map(e => [`${e.kind}:${e.key}`, { via: 'Prosp', at: e.created_at }]),
     ...(ex.data || []).map(e => [`${e.kind}:${e.key}`, { via: 'Linked Helper', at: e.created_at, sender: e.sender, version: e.version, status: e.status }])]);
   const out = [];
-  const add = (kind, key, s, score, loc = '') => { const p = liPerson(kind, key); if (p) out.push({ kind, key, s, p, score, loc, done: done.get(`${kind}:${key}`) || null, hook: kind === 'fund' ? null : deadlineOf(kind, s) }); };
+  const add = (kind, key, s, score, loc = '') => { const p = liPerson(kind, key); if (p) out.push({ kind, key, s, p, score, loc, site: contactOf(kind, key)?.website || '', done: done.get(`${kind}:${key}`) || null, hook: kind === 'fund' ? null : deadlineOf(kind, s) }); };
   if (lane === 'funds') {
     await loadContacts('fund', true);
     const r = await sb.from('fund_signals').select('id,fund_key,company_name,score,list,executives').eq('verdict', 'target').eq('status', 'new').order('score', { ascending: false }).limit(3000);
@@ -43,11 +43,40 @@ const statusOf = d => !d ? '<span class="muted">Not contacted</span>'
   : d.via === 'Prosp' ? `In Prosp · ${day(d.at)}` : `Exported · ${esc(d.sender || '')} · ${day(d.at)}${d.version ? ` · ${d.version}` : ''}${d.status && d.status !== 'exported' ? ` · ${esc(d.status)}` : ''}`;
 
 const csvCell = v => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
-export function toCsv(list, withVars) {
-  const head = withVars ? ['profile_url', 'first_name', 'last_name', 'company', 'title', 'hook'] : ['profile_url'];
-  const line = x => { const [first, ...rest] = String(x.p.name || '').trim().split(/\s+/);
-    return (withVars ? [x.p.linkedin, first, rest.join(' '), cleanName(x.s.company_name), x.p.title || '', x.hook || ''] : [x.p.linkedin]).map(csvCell).join(','); };
-  return [head.join(','), ...list.map(line)].join('\n') + '\n';
+// Tengku's format (21 Nov 2026, from a Prosp export "Founder_Funds_Prosp1_.csv"): these 10 columns, this order. Hook goes in Custom Column.
+export const CSV_HEAD = ['name', 'email', 'phoneNumber', 'headline', 'jobTitle', 'location', 'company', 'websiteUrl', 'linkedin_url', 'Custom Column'];
+// Strategy words at the end of a fund name aren't the firm ("82VS QP Seed", "Mitra Diversified", "Event Capital Strategies").
+const STRAT = /(?:\s+(?:qp|gp|seed|founding|opportunit(?:y|ies)|zone|diversified|sustainable|infrastructure|strategies|strategy|opportunistic|growth|income|credit|select|emerging|early|stage))+$/i;
+// All-caps names to Title Case, but leave short acronyms and anything with a digit ("IMB", "82VS").
+const tidy = t => { t = t.replace(/\s+/g, ' ').trim(); return t === t.toUpperCase() ? t.split(' ').map(w => w.length <= 3 || /\d/.test(w) ? w : w[0] + w.slice(1).toLowerCase()).join(' ') : t; };
+// Fund vehicle -> the firm people know ("VamosVentures Fund II, L.P." -> "VamosVentures", "BFF II US Feeder LP" -> "BFF").
+export const firmOf = n => tidy(String(n || '').replace(/\([^)]*\)/g, ' ').replace(/,?\s*\b(l\.?\s?p\.?|llc|l\.?l\.?c\.?|ltd|inc|scsp)\b\.?/gi, ' ')
+  .replace(/\s+(?:fund\s+)?(?:[IVX]{1,4}|\d{1,2}|\d{4}(?:-[IVX0-9]+)?)(?:-[A-Z0-9]+)?\b.*$/i, '').replace(/\s+(?:us\s+)?(?:feeder|parallel|offshore)\b.*$/i, '')
+  .replace(/\s+fund\b.*$/i, '').replace(/\s+sbic\b.*$/i, '').replace(/[,\s]+$/, '').replace(STRAT, ''));
+// A search-result headline we can show as theirs: not a location line, not cut off mid-word.
+// A search-result headline we can show as theirs. Location lines and Form D labels are dropped; a headline search cut off ("…")
+// keeps only its role ("Founder & Managing Partner, YK ..." -> "Founder & Managing Partner at YK"), else it's dropped.
+export function cleanHeadline(t, co) {
+  const raw = String(t || '').replace(/\s*[-–]\s*Professional Profile\s*$/i, '').trim(), cut = /(\.\.\.|…)$/.test(raw);
+  const h = raw.replace(/\s*(\.\.\.|…)$/, '').trim();
+  if (!h || /^(executive officer|director|promoter)(\s*,\s*(executive officer|director|promoter))*$/i.test(h)) return '';   // Form D labels
+  if (!ROLE.test(h) && (/(United States|\b(Area|Metropolitan|Region))$/.test(h) || /,\s*[A-Z]{2}$/.test(h))) return '';   // a place, not a headline
+  if (!cut) return h;
+  const r = roleIn(h); return r ? `${r} at ${co}` : '';
+}
+const ROLE = /\b(Managing General Partner|General Partner|Managing Partner|Founding Partner|Co-Founder|Founder|Managing Director|Chief [A-Z][a-z]+ Officer|CEO|CFO|CIO|COO|President|Principal|Partner)\b/i;
+// Job title from a headline: the part that names a role ("Co-Founder and Managing Partner at X" -> "Co-Founder and Managing Partner"), else blank.
+export const roleIn = h => { const first = String(h || '').split(/\s+(?:at|@|of)\s+|\s+[|·]\s+|,\s+|\s+-\s+/)[0]; return ROLE.test(first) ? first.trim() : (String(h || '').match(ROLE)?.[0] || ''); };
+const place = l => { const t = String(l || '').trim(); return t === t.toUpperCase() ? t.split(', ').map((w, i, a) => i === a.length - 1 && w.length === 2 ? w : w.toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase())).join(', ') : t; };
+export function toCsv(list) {
+  const line = x => {
+    const fund = x.kind === 'fund', co = fund ? firmOf(x.s.company_name) : cleanName(x.s.company_name);
+    // Fund GPs: the title is their LinkedIn headline (Form D only says "Director" / "Executive Officer"). Public companies: the SEC title.
+    const head = fund ? cleanHeadline(x.p.title, co) : '', job = fund ? roleIn(head) : x.p.title || '';
+    const email = x.p.email && x.p.email_status === 'valid' ? x.p.email : '';   // only checked mailboxes
+    return [x.p.name, email, '', fund ? head : job ? `${job} at ${co}` : '', job, place(x.loc), co, x.site || '', x.p.linkedin, x.hook || ''].map(csvCell).join(',');
+  };
+  return [CSV_HEAD.join(','), ...list.map(line)].join('\n') + '\n';
 }
 function download(name, text) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' })); a.download = name;
@@ -64,20 +93,19 @@ export async function linkedHelperModal(onDone, startLane) {
       <label class="field">Sent from (whose LinkedIn)<input class="input" name="sender" list="lhTeam" value="${esc(sender())}" required><datalist id="lhTeam">${TEAM.map(n => `<option value="${n}">`).join('')}</datalist></label>
       <label class="field">How many<input class="input" name="n" type="number" min="1" max="500" value="${store.get('hq-lh-n') || 50}"></label>
       <label class="field"><span><input type="checkbox" name="ab" ${store.get('hq-lh-ab') === '0' ? '' : 'checked'}> Split into A and B (two files, one per campaign)</span></label>
-      <label class="field" style="grid-column:1/-1"><span><input type="checkbox" name="vars" ${store.get('hq-lh-vars') === '1' ? 'checked' : ''}> Add first name, company and hook columns (only with Linked Helper's custom-variables plug-in)</span></label>
       <div id="lhList" style="grid-column:1/-1"><div class="empty">Loading…</div></div></div>`,
     async onSubmit(fd) {
       const picked = [...sel].sort((a, b) => a - b).map(i => list[i]).filter(x => x && !x.done);
       const who = String(fd.get('sender') || '').trim();
       if (!picked.length || !who) { toast(who ? 'Nothing ticked' : 'Say whose account sends it'); return false; }
-      const ab = !!fd.get('ab'), vars = !!fd.get('vars'), batch = crypto.randomUUID();
+      const ab = !!fd.get('ab'), batch = crypto.randomUUID();
       picked.forEach((x, i) => x.v = ab && i % 2 ? 'B' : 'A');   // alternate down the score order, so A and B get the same quality
       const r = await sb.from('lh_exports').insert(picked.map(x => ({ kind: x.kind, key: x.key, lane, company_name: x.s.company_name, person_name: x.p.name, title: x.p.title || null,
         linkedin_url: x.p.linkedin, hook: x.hook, sender: who, version: x.v, batch_id: batch, exported_by: state.user?.email || null })));
       if (r.error) { toast(r.error.message); return false; }
       const day = new Date().toISOString().slice(0, 10), tag = `${lane}-${who.toLowerCase()}-${day}`;
-      for (const v of ab ? ['A', 'B'] : ['A']) download(`lh-${tag}${ab ? '-' + v : ''}.csv`, toCsv(picked.filter(x => x.v === v), vars));
-      store.set(`hq-lh-sender-${lane}`, who); store.set('hq-lh-ab', ab ? '1' : '0'); store.set('hq-lh-vars', vars ? '1' : '0');
+      for (const v of ab ? ['A', 'B'] : ['A']) download(`lh-${tag}${ab ? '-' + v : ''}.csv`, toCsv(picked.filter(x => x.v === v)));
+      store.set(`hq-lh-sender-${lane}`, who); store.set('hq-lh-ab', ab ? '1' : '0');
       toast(`${picked.length} exported${ab ? ` (${picked.filter(x => x.v === 'A').length} A, ${picked.filter(x => x.v === 'B').length} B)` : ''}. In Linked Helper: open the campaign → Add → upload the file.`);
       onDone?.();
     },

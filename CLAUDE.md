@@ -598,6 +598,10 @@ Today, Schedule, Resources (no one holds it right now, the role still exists). R
   opens `linkedHelperModal(null, lane)` (`hq/linkedhelper.js`; also on Today → Daily 3). Plain `profile_url` CSV for Linked Helper or Prosp.
   Prosp-style table (Tengku sent a Prosp screenshot): select-all + row ticks, "N selected", Person / Company / Location / Hook / Status;
   views Not contacted / Already contacted / All; exported (`lh_exports`) and Prosp (`outreach_enrollments`) rows show who + when and are locked.
+  **CSV = Tengku's Prosp format** (21 Nov 2026): `name,email,phoneNumber,headline,jobTitle,location,company,websiteUrl,linkedin_url,Custom Column`
+  (`CSV_HEAD`); hook → Custom Column; email only when checked valid; funds: company = `firmOf()` (no "Fund II, L.P.", feeder, strategy
+  words), headline = cleaned LinkedIn headline (`cleanHeadline`: no Form D labels, places, cut-off text), jobTitle = its role. Test
+  `node scripts/tests/test_lh_csv.mjs`.
 - **Fund GP LinkedIn v2** (19 Nov 2026: 127 of 271 fund targets had none): `personProfile(results, name, firm, location)` takes a profile on
   firm named, Form D city named (people move firms: Colker AI2 → AI House), or nicknames (Abraham = Abe); a lone exact-name profile with a
   location-only headline = `status: 'unconfirmed'` (export shows "? check profile", unticked). A miss also searches last name + firm brand, then Exa people search (EXA_API_KEY, ~$0.007).
